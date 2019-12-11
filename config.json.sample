@@ -1,9 +1,0 @@
-{
-  "host": "localhost",
-  "port": 10011,
-  "user": "serveradmin",
-  "password": "super_secret-Password",
-  "server_id": 1337,
-
-  "gid" : 9999
-}
