@@ -85,10 +85,8 @@ class GroupAssigner:
             return True
 
         # if date range is exceeded shutdown gracefully
-        else:
-            # terminate possible open connections
-            logging.info('the current date exceeds the configured date range -- exiting')
-            self.__disconnect()
+        logging.info('the current date exceeds the configured date range -- exiting')
+        self.__disconnect()
 
     def __sleepstart(self):
         """
@@ -113,8 +111,51 @@ class GroupAssigner:
             time.sleep(remaindelta.seconds + 1)
 
         # if the date is too far back raise DateException
+        raise DateException('target date is too far in the future')
+
+    def __notifycliententerview(self, data: dict):
+        # return all non voice clients without reasonid 0
+        if data['client_type'] != '0' or data['reasonid'] != '0':
+            return
+
+        # check if the current date is still eligible
+        self.__datecheck()
+
+        cldbid = data['client_database_id']
+        user_grps = data['client_servergroups'].split(sep=',')
+
+        msg = '{client_nickname}:{client_database_id} connected - member of {client_servergroups}'
+        logging.debug(msg.format(**data))
+
+        # only try to add nonmembers to group
+        if str(self.gid) not in user_grps:
+
+            try:
+                # Usage: servergroupaddclient sgid={groupID} cldbid={clientDBID}
+                # cmd = self.conn.servergroupaddclient(sgid=self.gid, cldbid=cldbid)
+                cmd = self.conn.clientdbinfo(cldbid=cldbid)
+
+                if cmd.error['id'] != '0':
+                    logging.error(cmd.data[0].decode("utf-8"))
+
+                # log process
+                logging.info('{client_nickname}:{client_database_id} added to {gid}'.format(**data, gid=self.gid))
+
+            # log possible key errors while the teamspeak 5 client is not fully working
+            except KeyError as err:
+                logging.error([err, data])
+
+    def __eventhandler(self, event: str, data: dict):
+        """
+        event handler which separates events to their specific handlers
+        """
+        # client enter events
+        if event == "notifycliententerview":
+            self.__notifycliententerview(data)
+
+        # all other events return to main
         else:
-            raise DateException('target date is too far in the future')
+            return
 
     def start(self):
         # eol to start process ahead of time
@@ -145,39 +186,5 @@ class GroupAssigner:
                 pass
 
             else:
-                # only parse entering clients info
-                if event.event == "notifycliententerview":
-                    # is the event still eligible
-                    self.__datecheck()
-
-                    # skip query clients -- query client = 1 , voice client = 0
-                    if event[0]['client_type'] == '0':
-
-                        # reasonid should be 0 not sure why though
-                        if event[0]["reasonid"] == "0":
-
-                            cldbid = event.parsed[0]['client_database_id']
-                            user_grps = event.parsed[0]['client_servergroups'].split(sep=',')
-
-                            msg = '{client_nickname}:{client_database_id} connected - member of {client_servergroups}'
-                            logging.debug(msg.format(**event[0]))
-
-                            # only try to add nonmembers to group
-                            if str(self.gid) not in user_grps:
-
-                                # https://yat.qa/ressourcen/server-query-kommentare/
-                                # Usage: servergroupaddclient sgid={groupID} cldbid={clientDBID}
-                                try:
-                                    cmd = self.conn.servergroupaddclient(sgid=self.gid, cldbid=cldbid)
-
-                                    if cmd.error['id'] != '0':
-                                        logging.error(cmd.data[0].decode("utf-8"))
-
-                                    # log process
-                                    msg = '{client_nickname}:{client_database_id} added to {gid}'
-                                    logging.info(msg.format(**event[0], gid=self.gid))
-
-                                # log possible key errors while the teamspeak 5 client is not fully working
-                                except KeyError:
-                                    logging.error(str(event.parsed))
-                                    pass
+                # handle incoming events
+                self.__eventhandler(event.event, event.parsed[0])

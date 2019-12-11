@@ -1,4 +1,5 @@
 # TeamSpeak GroupAssigner
+[![CodeFactor](https://www.codefactor.io/repository/github/mightybroccoli/tsgroupassigner/badge)](https://www.codefactor.io/repository/github/mightybroccoli/tsgroupassigner)
 
 ## Overview
 TSGroupAssigner is a module which allows to automatically assign server groups to voice clients, if they connect within 
