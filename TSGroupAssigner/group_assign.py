@@ -4,6 +4,7 @@ import datetime as dt
 import logging
 import sys
 import time
+from contextlib import suppress
 
 import ts3
 
@@ -97,7 +98,6 @@ class GroupAssigner:
         # start date already reached proceed
         if self.startdate <= now:
             logging.debug('start date is already reached -- not eligible to sleepstart continue')
-            return
 
         # if startdate within the next 24h proceed to sleepstart
         elif now >= self.startdate - dt.timedelta(days=1):
@@ -110,8 +110,9 @@ class GroupAssigner:
             logging.debug('target date will be reached in {sec} seconds -- sleeping'.format(sec=remaindelta.seconds))
             time.sleep(remaindelta.seconds + 1)
 
-        # if the date is too far back raise DateException
-        raise DateException('target date is too far in the future')
+        else:
+            # if the date is too far back raise DateException
+            raise DateException('target date is too far in the future')
 
     def __notifycliententerview(self, data: dict):
         # return all non voice clients without reasonid 0
@@ -177,14 +178,10 @@ class GroupAssigner:
         while True:
             self.conn.send_keepalive()
 
-            try:
-                # wait for an event to be thrown
+            # suppress TimeoutError exceptions
+            with suppress(ts3.query.TS3TimeoutError):
+                # wait for events
                 event = self.conn.wait_for_event(timeout=60)
 
-            # process TeamSpeak Telnet timeout
-            except ts3.query.TS3TimeoutError:
-                pass
-
-            else:
-                # handle incoming events
+                # handover event to eventhandler
                 self.__eventhandler(event.event, event.parsed[0])

@@ -19,9 +19,8 @@ creds = {
 
 class TestGroupAssigner:
     def test_missing_input(self):
-        """
-        this should fail due to missing arguments
-        """
+        # the main class is missing arguments and should fail with a TypeError
+
         with pytest.raises(TypeError):
             GroupAssigner().start()
 
