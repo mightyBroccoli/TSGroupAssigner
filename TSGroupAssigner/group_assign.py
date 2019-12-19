@@ -8,9 +8,9 @@ from contextlib import suppress
 
 import ts3
 
+from .exceptions import DateException
 
-class DateException(Exception):
-    """raise this if the date delta exceeds the configured range"""
+__all__ = ['GroupAssigner']
 
 
 class GroupAssigner:
@@ -107,7 +107,7 @@ class GroupAssigner:
 
             # calculate remaining time delta
             remaindelta = starttime - now
-            logging.debug('target date will be reached in {sec} seconds -- sleeping'.format(sec=remaindelta.seconds))
+            logging.debug(f'target date will be reached in {remaindelta.seconds} seconds -- sleeping')
             time.sleep(remaindelta.seconds + 1)
 
         else:
@@ -118,9 +118,6 @@ class GroupAssigner:
         # return all non voice clients without reasonid 0
         if data['client_type'] != '0' or data['reasonid'] != '0':
             return
-
-        # check if the current date is still eligible
-        self.__datecheck()
 
         cldbid = data['client_database_id']
         user_grps = data['client_servergroups'].split(sep=',')
@@ -133,8 +130,7 @@ class GroupAssigner:
 
             try:
                 # Usage: servergroupaddclient sgid={groupID} cldbid={clientDBID}
-                # cmd = self.conn.servergroupaddclient(sgid=self.gid, cldbid=cldbid)
-                cmd = self.conn.clientdbinfo(cldbid=cldbid)
+                cmd = self.conn.servergroupaddclient(sgid=self.gid, cldbid=cldbid)
 
                 if cmd.error['id'] != '0':
                     logging.error(cmd.data[0].decode("utf-8"))
@@ -142,7 +138,7 @@ class GroupAssigner:
                 # log process
                 logging.info('{client_nickname}:{client_database_id} added to {gid}'.format(**data, gid=self.gid))
 
-            # log possible key errors while the teamspeak 5 client is not fully working
+            # log possible key errors while the teamspeak 5 client is not fully released
             except KeyError as err:
                 logging.error([err, data])
 
@@ -150,6 +146,9 @@ class GroupAssigner:
         """
         event handler which separates events to their specific handlers
         """
+        # check if event is still eligible
+        self.__datecheck()
+
         # client enter events
         if event == "notifycliententerview":
             self.__notifycliententerview(data)

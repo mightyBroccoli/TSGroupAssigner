@@ -32,7 +32,7 @@ class TestGroupAssigner:
         duration = dt.timedelta()
 
         with pytest.raises(DateException):
-            GroupAssigner(date=startdate, delta=duration,**creds).start()
+            GroupAssigner(date=startdate, delta=duration, **creds).start()
 
     def test_datecheck_enddate(self):
         # this should produce a exit code 0 SystemExit as the end date is in the past
@@ -42,7 +42,7 @@ class TestGroupAssigner:
         duration = dt.timedelta()
 
         with pytest.raises(SystemExit):
-            GroupAssigner(date=startdate, delta=duration,**creds).start()
+            GroupAssigner(date=startdate, delta=duration, **creds).start()
 
     def test_connect_noconnection(self):
         # connect should fail with ConnectionRefusedError
@@ -52,4 +52,4 @@ class TestGroupAssigner:
         duration = dt.timedelta()
 
         with pytest.raises(ConnectionRefusedError):
-            GroupAssigner(date=startdate, delta=duration,**creds).start()
+            GroupAssigner(date=startdate, delta=duration, **creds).start()
