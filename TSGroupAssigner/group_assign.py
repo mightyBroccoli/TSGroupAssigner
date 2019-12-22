@@ -21,16 +21,18 @@ class GroupAssigner:
         self.port = port
         self.user = user
         self.pw = password
-        self.sid = sid
 
-        # group
+        # server and group id
+        self.sid = sid
         self.gid = gid
 
         # start date and delta
         self.sleepstart = date - dt.timedelta(days=1)
         self.startdate = date
         self.enddate = date + delta
-        self.delta = delta
+
+        # init connection handler
+        self.conn = None
 
     def __connect(self):
         """ establish query connection and return connection handler """
@@ -54,9 +56,9 @@ class GroupAssigner:
             pass
 
         # broad exception if something unexpected happens
-        except ts3.TS3Error as TS3Error:
+        except ts3.TS3Error as err:
             # log exception
-            logging.error(TS3Error)
+            logging.error(err)
 
         # exit
         sys.exit()
@@ -65,14 +67,14 @@ class GroupAssigner:
         """ method to check if the current date is still in the configured date range """
         now = dt.date.today()
 
-        # check if target date is in the configured range
-        if self.startdate <= now <= self.enddate:
-            logging.debug('target date within configured date range')
-            return True
-
+        # check if still in the configured range
+        if not self.startdate <= now <= self.enddate:
         # if date range is exceeded shutdown gracefully
         logging.info('the current date exceeds the configured date range -- exiting')
         self.__disconnect()
+
+        # else continue
+        logging.debug('heartbeat - target date within configured date range')
 
     def __start_sleepstart(self):
         """ method to check if the process is eligible to sleepstart """
@@ -144,19 +146,20 @@ class GroupAssigner:
         self.__start_sleepstart()
 
         # proceed only if target date is inside the date range
-        if self.__checkdate():
-            try:
-                # init connection
-                self.__connect()
+        self.__checkdate()
 
-            # break if credentials are invalid
-            except ts3.query.TS3QueryError as err:
-                # log error
-                logging.error(err)
-                self.__disconnect()
+        try:
+            # init connection
+            self.__connect()
 
-            # start processing
-            self.__main()
+        # break if credentials are invalid
+        except ts3.query.TS3QueryError as err:
+            # log error
+            logging.error(err)
+            self.__disconnect()
+
+        # start processing
+        self.__main()
 
     def __main(self):
         """ bots main loop """
