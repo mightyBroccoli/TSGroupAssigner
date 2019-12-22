@@ -69,9 +69,9 @@ class GroupAssigner:
 
         # check if still in the configured range
         if not self.startdate <= now <= self.enddate:
-        # if date range is exceeded shutdown gracefully
-        logging.info('the current date exceeds the configured date range -- exiting')
-        self.__disconnect()
+            # if date range is exceeded shutdown gracefully
+            logging.info('the current date exceeds the configured date range -- exiting')
+            self.__disconnect()
 
         # else continue
         logging.debug('heartbeat - target date within configured date range')
@@ -116,6 +116,7 @@ class GroupAssigner:
 
         # only try to add nonmembers to group
         if str(self.gid) not in user_grps:
+            logging.debug(f'{data["client_nickname"]} is not member of {self.gid}')
 
             try:
                 # Usage: servergroupaddclient sgid={groupID} cldbid={clientDBID}
@@ -125,7 +126,7 @@ class GroupAssigner:
                     logging.error(cmd.data[0].decode("utf-8"))
 
                 # log process
-                logging.info('{client_nickname}:{client_database_id} added to {gid}'.format(**data, gid=self.gid))
+                logging.info('add {client_nickname}:{client_database_id} to {gid}'.format(**data, gid=self.gid))
 
             # log possible key errors while the teamspeak 5 client is not fully released
             except KeyError as err:
@@ -154,7 +155,7 @@ class GroupAssigner:
 
         # break if credentials are invalid
         except ts3.query.TS3QueryError as err:
-            # log error
+            # log error and disconnect
             logging.error(err)
             self.__disconnect()
 
@@ -162,7 +163,7 @@ class GroupAssigner:
         self.__main()
 
     def __main(self):
-        """ bots main loop """
+        """ main loop """
         # register for "server" notify event
         self.conn.servernotifyregister(event="server")
 
