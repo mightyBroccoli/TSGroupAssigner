@@ -1,24 +1,26 @@
 # TeamSpeak GroupAssigner
-[![CodeFactor](https://www.codefactor.io/repository/github/mightybroccoli/tsgroupassigner/badge)](https://www.codefactor.io/repository/github/mightybroccoli/tsgroupassigner)
+[![PyPI](https://img.shields.io/pypi/v/TSGroupAssigner.svg)](https://pypi.python.org/pypi/TSGroupAssigner)
+[![PyPI](https://img.shields.io/pypi/pyversions/TSGroupAssigner.svg)](https://pypi.python.org/pypi/TSGroupAssigner)
+[![CodeFactor](https://www.codefactor.io/repository/github/mightybroccoli/TSGroupAssigner/badge)](https://www.codefactor.io/repository/github/mightybroccoli/TSGroupAssigner)
 
 ## Overview
 TSGroupAssigner is a module which allows to automatically assign server groups to voice clients, if they connect within 
-a specified date range.
+a specific date range.
 
-### example 
-This small example could be called on the 23.12 to assign the group `24` to every voice client connecting
+### example
+This small example script could be called before christmas to assign the group `24` to every voice client connecting
 to the server id `1`.
-The process will terminate gracefully when the configured date range is exceeded.
+The process will terminate gracefully, when the configured date range is exceeded.
 
 ```python
 import datetime as dt
 import logging
-from TSGroupAssigner import GroupAssigner
+from TSGroupAssigner import GroupAssigner, DateException
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-creds = {
+params = {
     'host': 'localhost',
     'port': 10011,
     'user': 'serveradmin',
@@ -30,5 +32,8 @@ creds = {
 target = dt.date(year=2019, month=24, day=12)
 duration = dt.timedelta(days=2)
 
-GroupAssigner(date=target, delta=duration, **creds).start()
+try:
+    GroupAssigner(date=target, delta=duration, **params).start()
+except DateException as err:
+    logger.error(err)
 ```

@@ -45,6 +45,9 @@ class GroupAssigner:
         # select specified sid
         self.conn.use(sid=self.sid)
 
+        # assign friendly nickname
+        self.conn.clientupdate(client_nickname=__name__)
+
     def __disconnect(self):
         """ gracefully logout and disconnect the connection, this should only be called if the exit is intentional """
         try:
