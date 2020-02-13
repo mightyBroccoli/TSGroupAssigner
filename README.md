@@ -29,11 +29,11 @@ params = {
     'gid': 24
 }
 
-target = dt.date(year=2019, month=24, day=12)
+target = dt.date(year=2020, month=2, day=14)
 duration = dt.timedelta(days=2)
 
 try:
-    GroupAssigner(date=target, delta=duration, **params).start()
+    GroupAssigner(date=target, nick="James", delta=duration, **params).start()
 except DateException as err:
     logger.error(err)
 ```
