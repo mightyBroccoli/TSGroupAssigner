@@ -15,7 +15,7 @@ __all__ = ['GroupAssigner']
 
 class GroupAssigner:
     def __init__(self, host: str, port: (str, int), user: str, password: str, sid: (str, int), gid: (str, int),
-                 date: dt.date, delta: dt.timedelta):
+                 date: dt.date, nick: (str, int) = None, delta: dt.timedelta = dt.timedelta(days=0)):
         # host config
         self.host = host
         self.port = port
@@ -23,6 +23,7 @@ class GroupAssigner:
         self.pw = password
 
         # server and group id
+        self.nick = nick
         self.sid = sid
         self.gid = gid
 
@@ -46,7 +47,7 @@ class GroupAssigner:
         self.conn.use(sid=self.sid)
 
         # assign friendly nickname
-        self.conn.clientupdate(client_nickname=__name__)
+        self.__set_botname(self.nick)
 
     def __disconnect(self):
         """ gracefully logout and disconnect the connection, this should only be called if the exit is intentional """
@@ -102,6 +103,73 @@ class GroupAssigner:
             # if the date is too far back raise DateException
             raise DateException('target date is too far in the future')
 
+    def __set_botname(self, nickname: (str, int)):
+        """
+        method setting the bots client_nickname
+        @param nickname: nickname for the bot
+        """
+        # none catch
+        if nickname is not None:
+            client_nick = nickname
+
+        # default to project name # TODO better default name
+        else:
+            client_nick = 'TSGroupAssigner'
+
+        # set nickname
+        self.conn.clientupdate(client_nickname=client_nick)
+
+    def __assigngroup(self, cldbid: str, client_nickname: str, client_servergroups: str):
+        """
+        method to assign the specified client_database_id the defined group
+        @param cldbid: client_database_id uniquely assigned to each user
+        @param client_servergroups: list of groups the client is a member of
+        @param client_nickname: username to the cldbid
+        """
+        # only try to add nonmembers to group
+        if str(self.gid) not in client_servergroups.split(sep=','):
+            logging.debug(f'{client_nickname}:{cldbid} is not member of {self.gid}')
+
+            try:
+                # Usage: servergroupaddclient sgid={groupID} cldbid={clientDBID}
+                cmd = self.conn.servergroupaddclient(sgid=self.gid, cldbid=cldbid)
+
+                if cmd.error['id'] != '0':
+                    logging.error(cmd.data[0].decode("utf-8"))
+
+                # log process
+                logging.info(f'add {client_nickname}:{cldbid} to {self.gid}')
+
+            # log possible key errors while the teamspeak 5 client is not fully released
+            except KeyError as err:
+                logging.error(err)
+
+    def __clientlist(self, data: list):
+        """
+        handler for the currently connected clients
+        @param data: list containing users info as dictionaries
+        """
+
+        for user in data:
+            # only proceed if its a voice client
+            if user['client_type'] != '0':
+                continue
+
+            # query the client info as clientlist does not return group info
+            clid = user['clid']
+            user_info = self.conn.clientinfo(clid=clid).parsed[0]
+
+            # assign necessary info
+            cldbid = user_info['client_database_id']
+            client_servergroups = user_info['client_servergroups']
+            client_nickname = user_info['client_nickname']
+
+            # logging is key
+            logging.debug(f'{client_nickname}:{cldbid} is online - member of {client_servergroups}')
+
+            # hand over necessary info to the assignment method
+            self.__assigngroup(cldbid=cldbid, client_nickname=client_nickname, client_servergroups=client_servergroups)
+
     def __notifycliententerview(self, data: dict):
         """
         event thrown if a client connects to the server
@@ -112,30 +180,15 @@ class GroupAssigner:
             return
 
         cldbid = data['client_database_id']
-        user_grps = data['client_servergroups'].split(sep=',')
+        client_servergroups = data['client_servergroups']
+        client_nickname = data['client_nickname']
 
-        msg = '{client_nickname}:{client_database_id} connected - member of {client_servergroups}'
-        logging.debug(msg.format(**data))
+        logging.debug(f'{client_nickname}:{cldbid} connected - member of {client_servergroups}')
 
-        # only try to add nonmembers to group
-        if str(self.gid) not in user_grps:
-            logging.debug(f'{data["client_nickname"]} is not member of {self.gid}')
+        # hand over necessary info to the assignment method
+        self.__assigngroup(cldbid=cldbid, client_nickname=client_nickname, client_servergroups=client_servergroups)
 
-            try:
-                # Usage: servergroupaddclient sgid={groupID} cldbid={clientDBID}
-                cmd = self.conn.servergroupaddclient(sgid=self.gid, cldbid=cldbid)
-
-                if cmd.error['id'] != '0':
-                    logging.error(cmd.data[0].decode("utf-8"))
-
-                # log process
-                logging.info('add {client_nickname}:{client_database_id} to {gid}'.format(**data, gid=self.gid))
-
-            # log possible key errors while the teamspeak 5 client is not fully released
-            except KeyError as err:
-                logging.error([err, data])
-
-    def __handle_event(self, event: str, data: dict):
+    def __handle_event(self, event: str, data: (dict, list)):
         """ event handler which separates events to their specific handlers """
         # check if event is still eligible
         self.__checkdate()
@@ -143,6 +196,9 @@ class GroupAssigner:
         # client enter events
         if event == "notifycliententerview":
             self.__notifycliententerview(data)
+
+        if event == "clientlist":
+            self.__clientlist(data)
 
     def start(self):
         """ main entry point to start the bot """
@@ -169,6 +225,10 @@ class GroupAssigner:
         """ main loop """
         # register for "server" notify event
         self.conn.servernotifyregister(event="server")
+
+        # handle already connected clients
+        cl_list = self.conn.clientlist(voice=True).parsed
+        self.__handle_event("clientlist", cl_list)
 
         # start listening and processing
         while True:
